@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 :root { --lime:#d8ff43; --ink:#10130f; --paper:#f2f1ea; --line:rgba(255,255,255,.28); }
-* { box-sizing:border-box; }
+* { box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
 html,body { margin:0; width:100%; min-height:100%; background:var(--ink); color:white; font-family:Arial,"Noto Sans KR",sans-serif; overflow:hidden; }
+body { touch-action:manipulation; }
 button,input { font:inherit; }
 button { cursor:pointer; }
 .screen { position:relative; width:100%; min-height:100svh; overflow:hidden; isolation:isolate; }
