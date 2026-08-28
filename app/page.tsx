@@ -49,6 +49,7 @@ function MapTiles({ center }: { center: Point }) {
 }
 
 function PhaseOne({ onComplete }: { onComplete: () => void }) {
+  const [locationActive, setLocationActive] = useState(false);
   const [position, setPosition] = useState<Point | null>(null);
   const [origin, setOrigin] = useState<Point | null>(null);
   const [accuracy, setAccuracy] = useState(0);
@@ -66,6 +67,7 @@ function PhaseOne({ onComplete }: { onComplete: () => void }) {
   }, []);
 
   useEffect(() => {
+    if (!locationActive) return;
     if (!navigator.geolocation) { setStatus("GPS unavailable"); return; }
     watch.current = navigator.geolocation.watchPosition(
       ({ coords }) => update({ lat: coords.latitude, lon: coords.longitude }, coords.accuracy),
@@ -73,7 +75,7 @@ function PhaseOne({ onComplete }: { onComplete: () => void }) {
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 },
     );
     return () => { if (watch.current !== null) navigator.geolocation.clearWatch(watch.current); };
-  }, [update]);
+  }, [update, locationActive]);
 
   useEffect(() => {
     if (!position || !triggers.length) return;
@@ -118,6 +120,13 @@ function PhaseOne({ onComplete }: { onComplete: () => void }) {
       <button className="text-button" onClick={simulate}>{demo ? "Enter point" : "Demo"}</button>
       <p className="attribution">© OpenStreetMap contributors</p>
     </div>
+    {!locationActive && <div className="permission-gate">
+      <div>
+        <h1>Enable location</h1>
+        <p>Location is used to place eight points around you.</p>
+        <button className="primary" onClick={() => setLocationActive(true)}>Allow location <span>→</span></button>
+      </div>
+    </div>}
   </main>;
 }
 
