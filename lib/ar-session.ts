@@ -33,6 +33,9 @@ export function createSession(options: Options): Session {
   let scene: THREE.Scene | undefined;
   let camera: THREE.PerspectiveCamera | undefined;
   let media: HTMLMediaElement | undefined;
+  let soundtrack: HTMLMediaElement | undefined;
+  const mediaElements: HTMLMediaElement[] = [];
+  let startingPlayback = false;
   let mixer: THREE.AnimationMixer | undefined;
   const actions: THREE.AnimationAction[] = [];
   let videoTexture: THREE.VideoTexture | undefined;
@@ -56,7 +59,7 @@ export function createSession(options: Options): Session {
     state = next;
     if (!abort.signal.aborted) onState(next, message);
   }
-  function stopPlayback() { media?.pause(); }
+  function stopPlayback() { for (const element of mediaElements) element.pause(); }
   function fail(error: unknown) {
     if (abort.signal.aborted) return;
     stopPlayback();
@@ -65,9 +68,10 @@ export function createSession(options: Options): Session {
     setState('error', text);
   }
   function checkAlive() { if (abort.signal.aborted) throw new DOMException('Session closed', 'AbortError'); }
-  async function prepareMedia(path: string, video: boolean) {
+  async function prepareMedia(path: string, video: boolean, primary = true) {
     const element = document.createElement(video ? 'video' : 'audio');
-    media = element;
+    mediaElements.push(element);
+    if (primary) media = element;
     element.preload = 'auto';
     element.loop = false;
     element.crossOrigin = 'anonymous';
@@ -94,7 +98,8 @@ export function createSession(options: Options): Session {
     checkAlive();
     element.addEventListener('error', () => fail(new Error('Media playback failed. Please retry.')), { signal: abort.signal });
     element.addEventListener('ended', () => {
-      if (state !== 'playing') return;
+      if (!primary || state !== 'playing') return;
+      stopPlayback();
       onProgress(1); setState('completed'); onComplete();
     }, { signal: abort.signal });
     return element;
@@ -182,6 +187,17 @@ export function createSession(options: Options): Session {
         if (spot.assetType === 'video') {
           if (!spot.videoPath) throw new Error('Content for this point is not available yet.');
           const video = await prepareMedia(spot.videoPath, true) as HTMLVideoElement;
+          if (spot.audioPath) {
+            video.muted = true;
+            soundtrack = await prepareMedia(spot.audioPath, false, false);
+            // Video remains the master timeline; the temporary audio ends with it.
+            video.addEventListener('waiting', () => soundtrack?.pause(), { signal: abort.signal });
+            video.addEventListener('playing', () => {
+              if (!soundtrack || state !== 'playing') return;
+              soundtrack.currentTime = video.currentTime;
+              void soundtrack.play().catch(fail);
+            }, { signal: abort.signal });
+          }
           videoTexture = new THREE.VideoTexture(video);
           videoTexture.colorSpace = THREE.SRGBColorSpace;
           const width = spot.videoWidthMeters * spot.scale;
@@ -269,16 +285,18 @@ export function createSession(options: Options): Session {
       } catch (error) { fail(error); }
     },
     async play() {
-      if (!media || !placed || !['ready', 'completed'].includes(state)) return;
-      media.currentTime = 0;
+      if (!media || !placed || startingPlayback || !['ready', 'completed'].includes(state)) return;
+      startingPlayback = true;
+      for (const element of mediaElements) element.currentTime = 0;
       for (const action of actions) action.reset().play();
       mixer?.setTime(0);
       reportedTime = -1; onProgress(0);
       try {
-        await media.play();
-        if (abort.signal.aborted) { media.pause(); return; }
+        await Promise.all(mediaElements.map(element => element.play()));
+        if (abort.signal.aborted || state === 'error') { stopPlayback(); return; }
         setState('playing');
-      } catch { setState('ready', 'Playback could not start. Tap Play to try again.'); }
+      } catch { stopPlayback(); setState('ready', 'Playback could not start. Tap Play to try again.'); }
+      finally { startingPlayback = false; }
     },
     dispose() {
       abort.abort(); stopPlayback();
@@ -287,7 +305,7 @@ export function createSession(options: Options): Session {
       mixer?.stopAllAction();
       disposeObject(root); videoTexture?.dispose();
       renderer?.dispose();
-      media?.removeAttribute('src'); media?.load(); media?.remove();
+      for (const element of mediaElements) { element.removeAttribute('src'); element.load(); element.remove(); }
       scene?.clear(); activePointers.clear();
     },
   };

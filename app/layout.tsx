@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
 export const metadata: Metadata = {
-  title: 'Between Bridges — London AR',
+  title: 'Albert Bridge',
   icons: { icon: '/favicon.svg' },
-  description: 'Two bridges. Ten encounters. A mobile artwork along the Thames. Local Phase 1 prototype.',
+  description: 'Explore Albert Bridge through an interactive map and AR experiences.',
+  openGraph: { title: 'Albert Bridge', description: 'Explore Albert Bridge through an interactive map and AR experiences.', type: 'website' },
+  twitter: { card: 'summary', title: 'Albert Bridge', description: 'Explore Albert Bridge through an interactive map and AR experiences.' },
 };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return <html lang="en"><body>{children}</body></html>;

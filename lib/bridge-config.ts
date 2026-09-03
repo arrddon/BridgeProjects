@@ -34,7 +34,7 @@ export const bridges: Bridge[] = [
   // Keep each pin, route, position and completion record independent.
   sourceAssets: {
     model: bridge.id === 'AlbertBridge' && (i === 0 || i === 2) ? 'Assets/Assets_AB/A01_model.glb' : null,
-    audio: bridge.id === 'AlbertBridge' && (i === 0 || i === 2) ? 'Assets/Assets_AB/A01_audio.wav' : null,
+    audio: bridge.id === 'AlbertBridge' ? 'Assets/Assets_AB/A01_audio.wav' : null,
     video: bridge.id === 'AlbertBridge' && (i === 1 || i === 3 || i === 4) ? 'Assets/Assets_AB/A02.mp4' : null,
   },
   contentDurationSeconds: bridge.id === 'AlbertBridge' ? (i === 0 || i === 2 ? 70.36 : 26.28) : null,
@@ -42,7 +42,7 @@ export const bridges: Bridge[] = [
   description: content[bridge.id]?.[bridge.id === 'AlbertBridge' ? (i === 0 || i === 2 ? 0 : 1) : i]?.description ?? '', position,
   destination: `/${bridge.id}/spot-${String(i + 1).padStart(2, '0')}`,
   modelPath: bridge.id === 'AlbertBridge' && (i === 0 || i === 2) ? '/assets/content/A01_model.glb' : null,
-  audioPath: bridge.id === 'AlbertBridge' && (i === 0 || i === 2) ? '/assets/content/A01_audio.wav' : null,
+  audioPath: bridge.id === 'AlbertBridge' ? '/assets/content/A01_audio.wav' : null,
   videoPath: bridge.id === 'AlbertBridge' && (i === 1 || i === 3 || i === 4) ? '/assets/content/A02.mp4' : null,
   modelSizeMeters: .8, videoWidthMeters: 1.2,
   scale: 1, rotation: [0, 0, 0] as [number, number, number],
