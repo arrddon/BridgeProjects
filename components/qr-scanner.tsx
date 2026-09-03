@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
 import { X } from 'lucide-react';
 import { bridges } from '@/lib/bridge-config';
+import { preferredQRcamera } from '@/lib/qr-camera';
 
 export default function QRScanner({ onClose, onScan }: { onClose: () => void; onScan: (path: string) => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -22,6 +23,22 @@ export default function QRScanner({ onClose, onScan }: { onClose: () => void; on
         if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error('Camera requires HTTPS or localhost.');
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
         if (cancelled) { stop(); return; }
+        const currentId = stream.getVideoTracks()[0]?.getSettings().deviceId;
+        // Permission unlocks device labels on browsers that hide them initially.
+        const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+        if (cancelled) { stop(); return; }
+        const preferredId = preferredQRcamera(devices, currentId);
+        if (preferredId && preferredId !== currentId) {
+          stop();
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: preferredId } }, audio: false });
+          } catch (error) {
+            if (cancelled) return;
+            if (error instanceof DOMException && error.name === 'NotAllowedError') throw error;
+            stream = await navigator.mediaDevices.getUserMedia({ video: currentId ? { deviceId: { exact: currentId } } : { facingMode: { ideal: 'environment' } }, audio: false });
+          }
+          if (cancelled) { stop(); return; }
+        }
         const player = video.current;
         if (!player) { stop(); return; }
         player.srcObject = stream;
