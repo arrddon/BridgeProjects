@@ -222,11 +222,19 @@ export function createSession(options: Options): Session {
             video.muted = true;
             soundtrack = await prepareMedia(spot.audioPath, false, false);
             // Video remains the master timeline; the temporary audio ends with it.
-            video.addEventListener('waiting', () => soundtrack?.pause(), { signal: abort.signal });
+            video.addEventListener('waiting', () => {
+              // Pausing during play() startup rejects the pending audio promise
+              // with AbortError on mobile browsers.
+              if (state === 'playing' && !startingPlayback) soundtrack?.pause();
+            }, { signal: abort.signal });
             video.addEventListener('playing', () => {
-              if (!soundtrack || state !== 'playing') return;
-              soundtrack.currentTime = video.currentTime;
-              void soundtrack.play().catch(fail);
+              if (!soundtrack || state !== 'playing' || startingPlayback) return;
+              if (Math.abs(soundtrack.currentTime - video.currentTime) > .25) soundtrack.currentTime = video.currentTime;
+              if (soundtrack.paused) void soundtrack.play().catch(error => {
+                // Another waiting/ended event may legitimately cancel this resume.
+                if (error instanceof DOMException && error.name === 'AbortError') return;
+                fail(error);
+              });
             }, { signal: abort.signal });
           }
           videoTexture = new THREE.VideoTexture(video);
@@ -337,7 +345,19 @@ export function createSession(options: Options): Session {
         await Promise.all(mediaElements.map(element => element.play()));
         if (abort.signal.aborted || state === 'error') { stopPlayback(); return; }
         setState('playing');
-      } catch { stopPlayback(); setState('ready', 'Playback could not start. Tap Play to try again.'); }
+      } catch (error) {
+        stopPlayback();
+        if (abort.signal.aborted || state === 'error') return;
+        console.warn('Bridge playback start failed', error);
+        const name = error instanceof Error ? error.name : '';
+        setState('ready', name === 'NotAllowedError'
+          ? 'Your browser blocked playback. Tap Play again to allow sound.'
+          : name === 'NotSupportedError'
+            ? 'This browser could not play the media format. Try Safari or Chrome.'
+            : name === 'AbortError'
+              ? 'Playback was interrupted while loading. Tap Play again.'
+              : 'Playback could not start. Tap Play to try again.');
+      }
       finally { startingPlayback = false; }
     },
     dispose() {

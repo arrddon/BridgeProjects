@@ -48,7 +48,7 @@ export default function ARExperience({ bridge, spot, complete }: { bridge: Bridg
     {['loading', 'camera', 'placing'].includes(state) && <div className="xr-message glass-panel" role="status"><p>{message}</p></div>}
     {state === 'error' && <div className="xr-message glass-panel" role="alert"><p>{message}</p><Button className="play-button" onClick={() => void start(mode)}>Retry</Button><Button variant="ghost" onClick={() => void start('preview')}>Preview content</Button></div>}
     {active && <section className="playback-overlay xr-playback">
-      {(mode === 'preview' || message) && <p className="xr-hint">{mode === 'preview' ? 'Content preview · camera off' : message}</p>}
+      {(mode === 'preview' || message) && <p className="xr-hint">{message || (mode === 'preview' ? 'Content preview · camera off' : '')}</p>}
       <div className="progress" role="progressbar" aria-label="Content playback progress" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${progress * 100}%` }} /></div>
       <Button className="play-button" disabled={state === 'playing'} onClick={() => void session.current?.play()}>{state === 'completed' ? <RotateCcw size={15} /> : <Play size={15} />}{state === 'completed' ? 'Replay' : state === 'playing' ? 'Playing' : 'Play'}</Button>
       <span className="playback-caption" aria-live="polite">{state === 'completed' ? mode === 'ar' ? 'Complete' : 'Preview complete' : '\u00a0'}</span>
