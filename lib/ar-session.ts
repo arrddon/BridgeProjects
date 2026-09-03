@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { Spot } from './bridge-config';
 import { loadEngine, type XR8Engine } from './xr-engine';
+import { forwardPlacement, initialARScale, pinchARScale } from './ar-placement';
 
 export type SessionState = 'loading' | 'camera' | 'placing' | 'ready' | 'playing' | 'completed' | 'error';
 export type Session = { start(): Promise<void>; play(): Promise<void>; dispose(): void };
@@ -50,7 +51,10 @@ export function createSession(options: Options): Session {
   root.rotation.set(...spot.rotation);
   const raycaster = new THREE.Raycaster();
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  const activePointers = new Set<number>();
+  const activePointers = new Map<number, { x: number; y: number }>();
+  let pinch: { distance: number; scale: number } | undefined;
+  let initialScale = 1;
+  const groundSamples: number[] = [];
   let drag: { id: number; offset: THREE.Vector3 } | undefined;
   let previewDrag: { id: number; x: number; y: number } | undefined;
   const previewTarget = new THREE.Vector3();
@@ -134,9 +138,17 @@ export function createSession(options: Options): Session {
     raycaster.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1), camera);
   }
   function pointerDown(event: PointerEvent) {
-    activePointers.add(event.pointerId);
-    if (activePointers.size > 1) { drag = undefined; previewDrag = undefined; return; }
     if (!placed || !tracking || event.button !== 0) return;
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (activePointers.size > 1) {
+      drag = undefined; previewDrag = undefined;
+      if (mode === 'ar' && activePointers.size === 2) {
+        const [a, b] = [...activePointers.values()];
+        pinch = { distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), scale: root.scale.x };
+        for (const id of activePointers.keys()) canvas.setPointerCapture(id);
+      } else { pinch = undefined; }
+      return;
+    }
     if (mode === 'preview') {
       previewDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
       canvas.setPointerCapture(event.pointerId);
@@ -150,6 +162,16 @@ export function createSession(options: Options): Session {
     canvas.setPointerCapture(event.pointerId);
   }
   function pointerMove(event: PointerEvent) {
+    if (!activePointers.has(event.pointerId)) return;
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (mode === 'ar' && activePointers.size > 1) {
+      if (!tracking) { pinch = undefined; return; }
+      if (pinch && activePointers.size === 2) {
+        const [a, b] = [...activePointers.values()];
+        root.scale.setScalar(pinchARScale(initialScale, pinch.scale, pinch.distance, Math.hypot(b.x - a.x, b.y - a.y)));
+      }
+      return;
+    }
     if (mode === 'preview') {
       if (!previewDrag || previewDrag.id !== event.pointerId || activePointers.size !== 1 || !camera) return;
       previewOrbit.theta -= (event.clientX - previewDrag.x) * .008;
@@ -167,9 +189,18 @@ export function createSession(options: Options): Session {
     root.position.z = hit.z + drag.offset.z;
   }
   function pointerUp(event: PointerEvent) {
-    activePointers.delete(event.pointerId);
+    if (!activePointers.delete(event.pointerId)) return;
+    const wasPinching = !!pinch;
+    pinch = undefined;
     if (drag?.id === event.pointerId) drag = undefined;
     if (previewDrag?.id === event.pointerId) previewDrag = undefined;
+    if (wasPinching && activePointers.size === 1 && tracking && camera) {
+      const [id, point] = [...activePointers.entries()][0];
+      const rect = canvas.getBoundingClientRect();
+      raycaster.setFromCamera(new THREE.Vector2((point.x - rect.left) / rect.width * 2 - 1, -(point.y - rect.top) / rect.height * 2 + 1), camera);
+      const hit = raycaster.ray.intersectPlane(plane, new THREE.Vector3());
+      if (hit) drag = { id, offset: root.position.clone().sub(hit) };
+    }
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
   }
   canvas.addEventListener('pointerdown', pointerDown, { signal: abort.signal });
@@ -242,7 +273,7 @@ export function createSession(options: Options): Session {
         setState('loading', 'Loading AR engine…');
         xr = await loadEngine(); checkAlive();
         xr.clearCameraPipelineModules();
-        xr.XrController.configure({ disableWorldTracking: false, scale: 'responsive' });
+        xr.XrController.configure({ disableWorldTracking: false, scale: 'absolute' });
         ownsXR = true;
         xr.addCameraPipelineModules([
           xr.GlTextureRenderer.pipelineModule(), xr.Threejs.pipelineModule(), xr.XrController.pipelineModule(),
@@ -254,7 +285,7 @@ export function createSession(options: Options): Session {
               scene = xrScene.scene; camera = xrScene.camera; renderer = xrScene.renderer;
               camera.position.set(0, 1.5, 0);
               xr!.XrController.updateCameraProjectionMatrix({ origin: camera.position, facing: camera.quaternion });
-              setupScene(); setState('placing', 'Point toward the ground and move slowly.');
+              setupScene(); setState('placing', 'Look at the ground ahead and move slowly.');
             },
             onCameraStatusChange: ({ status }) => {
               if (status === 'requesting') setState('camera', 'Allow camera access to continue.');
@@ -263,15 +294,26 @@ export function createSession(options: Options): Session {
             onUpdate: ({ processCpuResult }) => {
               if (abort.signal.aborted || state === 'error' || !camera) return;
               tracking = processCpuResult?.reality?.trackingStatus === 'NORMAL';
+              if (!tracking) { groundSamples.length = 0; pinch = undefined; drag = undefined; }
               if (!placed && tracking && ++frameCount % 8 === 0) {
                 const hits = xr!.XrController.hitTest(.5, .72, ['FEATURE_POINT']);
-                const hit = hits.find(h => h.distance > .4 && h.distance < 4 && h.position.y < camera!.position.y - .25);
+                const hit = hits.find(h => h.distance > .5 && h.distance < 5 && camera!.position.y - h.position.y > .4 && camera!.position.y - h.position.y < 2.5);
                 if (hit) {
-                  root.position.set(hit.position.x, hit.position.y, hit.position.z);
-                  plane.constant = -hit.position.y;
-                  root.visible = true; placed = true;
-                  setState('ready', 'Drag the content to adjust its position.');
-                }
+                  groundSamples.push(hit.position.y);
+                  if (groundSamples.length > 3) groundSamples.shift();
+                  const groundY = [...groundSamples].sort((a, b) => a - b)[1];
+                  const stable = groundSamples.length === 3 && Math.max(...groundSamples) - Math.min(...groundSamples) < .18;
+                  const anchor = stable ? forwardPlacement(camera, groundY) : null;
+                  if (anchor) {
+                    const diameter = new THREE.Box3().setFromObject(root).getBoundingSphere(new THREE.Sphere()).radius * 2;
+                    initialScale = initialARScale(camera, anchor, diameter);
+                    root.scale.setScalar(initialScale);
+                    root.position.copy(anchor);
+                    plane.constant = -groundY;
+                    root.visible = true; placed = true;
+                    setState('ready', 'Drag to move · pinch to resize');
+                  }
+                } else { groundSamples.length = 0; }
               }
               update();
             },

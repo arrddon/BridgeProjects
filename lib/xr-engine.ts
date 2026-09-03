@@ -21,7 +21,7 @@ export type XR8Engine = {
   XrConfig: { device(): { ANY: string }; camera(): { BACK: string } };
   XrController: {
     pipelineModule(): PipelineModule;
-    configure(options: { disableWorldTracking: boolean; scale: 'responsive' }): void;
+    configure(options: { disableWorldTracking: boolean; scale: 'responsive' | 'absolute' }): void;
     updateCameraProjectionMatrix(options: { origin: THREE.Vector3; facing: THREE.Quaternion }): void;
     hitTest(x: number, y: number, types: string[]): { position: { x: number; y: number; z: number }; distance: number; type: string }[];
   };
