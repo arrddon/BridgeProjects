@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { Spot } from './bridge-config';
 import { loadEngine, type XR8Engine } from './xr-engine';
 import { forwardPlacement, initialARScale, pinchARScale } from './ar-placement';
+import { resizeARCanvas } from './ar-canvas';
 
 export type SessionState = 'loading' | 'camera' | 'placing' | 'ready' | 'playing' | 'completed' | 'error';
 export type Session = { start(): Promise<void>; play(): Promise<void>; dispose(): void };
@@ -126,9 +127,14 @@ export function createSession(options: Options): Session {
     root.visible = placed;
     observer = new ResizeObserver(() => {
       if (!renderer || !camera || abort.signal.aborted) return;
+      if (mode === 'ar') {
+        resizeARCanvas(canvas, window.devicePixelRatio);
+        return;
+      }
       const width = canvas.clientWidth, height = canvas.clientHeight;
+      if (width <= 0 || height <= 0) return;
       renderer.setSize(width, height, false);
-      if (mode === 'preview') { camera.aspect = width / height; camera.updateProjectionMatrix(); }
+      camera.aspect = width / height; camera.updateProjectionMatrix();
     });
     observer.observe(canvas);
   }
@@ -328,8 +334,7 @@ export function createSession(options: Options): Session {
             onException: fail,
           },
         ]);
-        canvas.width = Math.round(canvas.clientWidth * Math.min(devicePixelRatio, 2));
-        canvas.height = Math.round(canvas.clientHeight * Math.min(devicePixelRatio, 2));
+        resizeARCanvas(canvas, window.devicePixelRatio);
         setState('camera', 'Starting camera…');
         await xr.run({ canvas, allowedDevices: xr.XrConfig.device().ANY, cameraConfig: { direction: xr.XrConfig.camera().BACK } });
       } catch (error) { fail(error); }
