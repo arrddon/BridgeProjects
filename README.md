@@ -4,7 +4,7 @@ React + TypeScript + Vite/Vinext 기반의 모바일 AR 프로토타입입니다
 
 ## 실행
 
-Node.js 22.13 이상. VS Code 터미널:
+Node.js 22 LTS. VS Code 터미널:
 
 ```powershell
 npm.cmd install
@@ -100,3 +100,7 @@ This product includes the XR Engine software developed by Niantic Spatial, Inc. 
 - [Three.js VideoTexture](https://threejs.org/docs/pages/VideoTexture.html)
 
 다음 단계는 휴대폰 HTTPS에서 실제 추적과 콘텐츠를 검증한 뒤 Supabase Spot별 Broadcast 반응을 연결하는 것입니다. 현재 Supabase·사용자 계정·DB는 연결하지 않았습니다.
+
+## Vercel 배포
+
+`vercel.json`은 Vite 프리셋, `npm run build:web`, 출력 `dist/web`를 지정합니다. 기존 Next.js 프리셋을 덮어씁니다. 정적 배포는 `web/main.tsx` 진입점에서 동일한 지도·AR 컴포넌트를 사용하며, 브라우저 History API로 이동합니다. 모든 페이지 경로를 `index.html`로 연결하므로 Spot QR 직접 진입과 새로고침이 가능합니다. 실제 이미지·미디어·엔진 파일은 정적 파일로 제공됩니다. 로컬 개발은 기존 `npm run dev`를 사용합니다.

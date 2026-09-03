@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": "22.x"
   },
   "scripts": {
     "predev": "node scripts/prepare-ar-assets.mjs",
@@ -14,7 +14,9 @@
     "build": "vinext build",
     "start": "vinext start --port 5173",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "prebuild:web": "node scripts/prepare-ar-assets.mjs",
+    "build:web": "vite build --config vite.web.config.ts"
   },
   "dependencies": {
     "@8thwall/engine-binary": "1.0.0",
