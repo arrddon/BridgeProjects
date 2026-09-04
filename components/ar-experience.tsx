@@ -17,7 +17,11 @@ export default function ARExperience({ bridge, spot, complete }: { bridge: Bridg
   const completeRef = useRef(complete);
   useEffect(() => { completeRef.current = complete; }, [complete]);
   useEffect(() => () => { generation.current++; session.current?.dispose(); }, []);
-  const available = spot.assetType === 'video' ? Boolean(spot.videoPath) : Boolean(spot.modelPath && spot.audioPath);
+  const available = spot.assetType === 'video'
+    ? Boolean(spot.videoPath)
+    : spot.assetType === 'image'
+      ? Boolean(spot.imagePath && spot.audioPath)
+      : Boolean(spot.modelPath && spot.audioPath);
   async function start(nextMode: 'ar' | 'preview') {
     const token = ++generation.current;
     session.current?.dispose(); session.current = null;
@@ -42,7 +46,7 @@ export default function ARExperience({ bridge, spot, complete }: { bridge: Bridg
     <header className="ar-heading"><Link href={`/${bridge.id}`} className="back-link"><ArrowLeft size={18} /> Map</Link><span className="micro">{spot.title}</span></header>
     {state === 'entry' && <section className="ar-entry glass-panel">
       <h1>{spot.title}</h1>
-      <p>{available ? spot.assetType === 'video' ? 'Place a video in the space around you.' : 'Place the object in the space around you.' : 'Content for this point is not available yet.'}</p>
+      <p>{available ? spot.assetType === 'video' ? 'Place a video in the space around you.' : spot.assetType === 'image' ? 'Place an image in the space around you.' : 'Place the object in the space around you.' : 'Content for this point is not available yet.'}</p>
       {available && <><Button className="play-button" onClick={() => void start('ar')}>Start AR</Button><Button variant="ghost" className="preview-button" onClick={() => void start('preview')}>Preview content</Button></>}
     </section>}
     {['loading', 'camera', 'placing'].includes(state) && <div className="xr-message glass-panel" role="status"><p>{message}</p></div>}

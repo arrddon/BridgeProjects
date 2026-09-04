@@ -250,7 +250,7 @@ export function createSession(options: Options): Session {
           const screen = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide, toneMapped: false }));
           screen.position.y = height / 2;
           root.add(screen);
-        } else {
+        } else if (spot.assetType === '3d') {
           if (!spot.modelPath || !spot.audioPath) throw new Error('Content for this point is not available yet.');
           const gltf = await new GLTFLoader().loadAsync(spot.modelPath);
           if (abort.signal.aborted) { disposeObject(gltf.scene); return; }
@@ -266,6 +266,20 @@ export function createSession(options: Options): Session {
             for (const clip of gltf.animations) { const action = mixer.clipAction(clip); action.setLoop(THREE.LoopOnce, 1); action.clampWhenFinished = true; action.play(); actions.push(action); }
             mixer.setTime(0);
           }
+          await prepareMedia(spot.audioPath, false);
+        } else {
+          if (!spot.imagePath || !spot.audioPath) throw new Error('Content for this point is not available yet.');
+          const texture = await new THREE.TextureLoader().loadAsync(spot.imagePath);
+          checkAlive();
+          texture.colorSpace = THREE.SRGBColorSpace;
+          const source = texture.image as { naturalWidth?: number; naturalHeight?: number; width?: number; height?: number };
+          const imageWidth = source.naturalWidth || source.width || 1;
+          const imageHeight = source.naturalHeight || source.height || 1;
+          const width = spot.videoWidthMeters * spot.scale;
+          const height = width * imageHeight / imageWidth;
+          const image = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, toneMapped: false }));
+          image.position.y = height / 2;
+          root.add(image);
           await prepareMedia(spot.audioPath, false);
         }
         checkAlive();
