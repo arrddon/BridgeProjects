@@ -13,7 +13,9 @@ test('initial placement stays ahead at ground height, independent of camera pitc
   assert.ok(Math.abs(anchor.z - 2.5) < 1e-8);
   assert.equal(anchor.y, 0);
   camera.lookAt(3, -10, 4);
-  assert.equal(forwardPlacement(camera, 0), null);
+  const downwardAnchor = forwardPlacement(camera, 0);
+  assert.ok(downwardAnchor);
+  assert.ok(Math.abs(Math.hypot(downwardAnchor.x - 3, downwardAnchor.z - 4) - 1.5) < 1e-8);
 });
 
 test('different camera fields of view receive the same initial projected size', () => {

@@ -56,6 +56,7 @@ export function createSession(options: Options): Session {
   let pinch: { distance: number; scale: number } | undefined;
   let initialScale = 1;
   const groundSamples: number[] = [];
+  let missedGroundScans = 0;
   let drag: { id: number; offset: THREE.Vector3 } | undefined;
   let previewDrag: { id: number; x: number; y: number } | undefined;
   const previewTarget = new THREE.Vector3();
@@ -323,14 +324,23 @@ export function createSession(options: Options): Session {
               if (abort.signal.aborted || state === 'error' || !camera) return;
               tracking = processCpuResult?.reality?.trackingStatus === 'NORMAL';
               if (!tracking) { groundSamples.length = 0; pinch = undefined; drag = undefined; }
-              if (!placed && tracking && ++frameCount % 8 === 0) {
-                const hits = xr!.XrController.hitTest(.5, .72, ['FEATURE_POINT']);
-                const hit = hits.find(h => h.distance > .5 && h.distance < 5 && camera!.position.y - h.position.y > .4 && camera!.position.y - h.position.y < 2.5);
+              if (!placed && tracking && ++frameCount % 5 === 0) {
+                // Sample the lower centre and both lower sides. Multi-lens Android
+                // devices and iOS Safari can report sparse points at any one ray.
+                const hits = [[.5, .72], [.32, .72], [.68, .72]]
+                  .flatMap(([x, y]) => xr!.XrController.hitTest(x, y, ['FEATURE_POINT']))
+                  .filter(h => h.distance > .3 && h.distance < 6 && camera!.position.y - h.position.y > .25 && camera!.position.y - h.position.y < 3)
+                  .sort((a, b) => a.distance - b.distance);
+                const hit = hits[0];
                 if (hit) {
+                  missedGroundScans = 0;
                   groundSamples.push(hit.position.y);
-                  if (groundSamples.length > 3) groundSamples.shift();
-                  const groundY = [...groundSamples].sort((a, b) => a - b)[1];
-                  const stable = groundSamples.length === 3 && Math.max(...groundSamples) - Math.min(...groundSamples) < .18;
+                  if (groundSamples.length > 5) groundSamples.shift();
+                  const sorted = [...groundSamples].sort((a, b) => a - b);
+                  const median = sorted[Math.floor(sorted.length / 2)];
+                  const stableSamples = sorted.filter(y => Math.abs(y - median) < .22);
+                  const groundY = stableSamples.reduce((sum, y) => sum + y, 0) / Math.max(stableSamples.length, 1);
+                  const stable = stableSamples.length >= 2 && Math.max(...stableSamples) - Math.min(...stableSamples) < .3;
                   const anchor = stable ? forwardPlacement(camera, groundY) : null;
                   if (anchor) {
                     const diameter = new THREE.Box3().setFromObject(root).getBoundingSphere(new THREE.Sphere()).radius * 2;
@@ -341,7 +351,7 @@ export function createSession(options: Options): Session {
                     root.visible = true; placed = true;
                     setState('ready', 'Drag to move · pinch to resize');
                   }
-                } else { groundSamples.length = 0; }
+                } else if (++missedGroundScans >= 4) { groundSamples.length = 0; missedGroundScans = 0; }
               }
               update();
             },

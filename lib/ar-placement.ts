@@ -3,8 +3,12 @@ import * as THREE from 'three';
 export function forwardPlacement(camera: THREE.PerspectiveCamera, groundY: number, distance = 1.5) {
   const forward = camera.getWorldDirection(new THREE.Vector3());
   forward.y = 0;
-  // Looking straight down has no stable forward heading: wait for a slight tilt.
-  if (forward.lengthSq() < .04) return null;
+  // When the phone points almost straight down, use the top of the screen as the
+  // ground heading instead of blocking placement. This is common during AR setup.
+  if (forward.lengthSq() < .04) {
+    forward.set(0, 1, 0).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion())).setY(0);
+  }
+  if (forward.lengthSq() < .001) return null;
   return camera.getWorldPosition(new THREE.Vector3()).add(forward.normalize().multiplyScalar(distance)).setY(groundY);
 }
 
