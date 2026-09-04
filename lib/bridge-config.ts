@@ -44,7 +44,7 @@ export const bridges: Bridge[] = [
   description: content[bridge.id]?.[i]?.description ?? '', position,
   destination: `/${bridge.id}/spot-${String(i + 1).padStart(2, '0')}`,
   modelPath: bridge.id === 'AlbertBridge' ? [
-    'https://res.cloudinary.com/douz9wtb2/image/upload/v1788516013/A01_model_kcyii6.glb', null,
+    'https://res.cloudinary.com/douz9wtb2/image/upload/v1788518406/A01_model_edited_fp20pa.glb', null,
     'https://res.cloudinary.com/douz9wtb2/image/upload/v1788516011/A03_model_dlwovo.glb', null, null,
   ][i] : null,
   audioPath: bridge.id === 'AlbertBridge' ? [

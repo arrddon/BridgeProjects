@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export function forwardPlacement(camera: THREE.PerspectiveCamera, groundY: number, distance = 2.2) {
+export function forwardPlacement(camera: THREE.PerspectiveCamera, groundY: number, distance = 1.5) {
   const forward = camera.getWorldDirection(new THREE.Vector3());
   forward.y = 0;
   // Looking straight down has no stable forward heading: wait for a slight tilt.

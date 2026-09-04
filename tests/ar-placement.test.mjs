@@ -10,7 +10,7 @@ test('initial placement stays ahead at ground height, independent of camera pitc
   const anchor = forwardPlacement(camera, 0);
   assert.ok(anchor);
   assert.ok(Math.abs(anchor.x - 3) < 1e-8);
-  assert.ok(Math.abs(anchor.z - 1.8) < 1e-8);
+  assert.ok(Math.abs(anchor.z - 2.5) < 1e-8);
   assert.equal(anchor.y, 0);
   camera.lookAt(3, -10, 4);
   assert.equal(forwardPlacement(camera, 0), null);
